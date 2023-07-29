@@ -4,14 +4,10 @@ Created on Thu Jul  6 13:42:39 2023
 
 @author: flero
 """
-import time
-
-aTot = time.time()
-
-#%%
 
 import pickle
 
+import time
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -145,13 +141,34 @@ if param['calibrate']:
     zernikePlus = Zernike(tel,
                           J=param['nModesShown'])
     zernikePlus.computeZernike(tel)
-       
+   
+#%%
+
+    calib_zernike_turlib_shGeo = InteractionMatrixFromPhaseScreen(ngs=src,
+                                          atm=atm,
+                                          tel=tel,
+                                          wfs=shGeo,
+                                          phasScreens=zernikePlus.modesFullRes,
+                                          stroke=param['stroke'])
+    
+#%%
+ 
+    calib_zernike_turlib_shDiff = InteractionMatrixFromPhaseScreen(ngs=src,
+                                          atm=atm,
+                                          tel=tel,
+                                          wfs=shDiff,
+                                          phasScreens=zernikePlus.modesFullRes,
+                                          stroke=param['stroke'])
+
+#%%    
     calib_zernike_turlib_pywfs = InteractionMatrixFromPhaseScreen(ngs=src,
                                           atm=atm,
                                           tel=tel,
                                           wfs=pywfs,
                                           phasScreens=zernikePlus.modesFullRes,
-                                          stroke=param['stroke'])    
+                                          stroke=param['stroke'])
+    
+#%%    
 
     # save calib results
     with open(param['pathDataCalibration'] + 'calib_zernike_shGeo.pkl', 'wb') as outp:
@@ -162,6 +179,12 @@ if param['calibrate']:
     
     with open(param['pathDataCalibration'] + 'calib_zernike_pywfs.pkl', 'wb') as outp:
         pickle.dump(calib_zernike_pywfs, outp, pickle.HIGHEST_PROTOCOL)
+        
+    with open(param['pathDataCalibration'] + 'calib_zernike_turlib_shGeo.pkl', 'wb') as outp:
+        pickle.dump(calib_zernike_turlib_shGeo, outp, pickle.HIGHEST_PROTOCOL)
+        
+    with open(param['pathDataCalibration'] + 'calib_zernike_turlib_shDiff.pkl', 'wb') as outp:
+        pickle.dump(calib_zernike_turlib_shDiff, outp, pickle.HIGHEST_PROTOCOL)
         
     with open(param['pathDataCalibration'] + 'calib_zernike_turlib_pywfs.pkl', 'wb') as outp:
         pickle.dump(calib_zernike_turlib_pywfs, outp, pickle.HIGHEST_PROTOCOL)
@@ -174,16 +197,22 @@ else:
     
     #load previous calibration results
     with open(param['pathDataCalibration'] + 'calib_zernike_shGeo.pkl', 'rb') as inp:
-        calib_zernike_shGeo = pickle.load(inp)
+        saved_calib_zernike_shGeo = pickle.load(inp)
         
     with open(param['pathDataCalibration'] + 'calib_zernike_shDiff.pkl', 'rb') as inp:
-        calib_zernike_shDiff = pickle.load(inp)
+        saved_calib_zernike_shDiff = pickle.load(inp)
         
     with open(param['pathDataCalibration'] + 'calib_zernike_pywfs.pkl', 'rb') as inp:
-        calib_zernike_pywfs = pickle.load(inp)
+        saved_calib_zernike_pywfs = pickle.load(inp)
+    
+    with open(param['pathDataCalibration'] + 'calib_zernike_turlib_shGeo.pkl', 'rb') as inp:
+        saved_calib_zernike_turlib_shGeo = pickle.load(inp)
+        
+    with open(param['pathDataCalibration'] + 'calib_zernike_turlib_shDiff.pkl', 'rb') as inp:
+        saved_calib_zernike_turlib_shDiff = pickle.load(inp)
         
     with open(param['pathDataCalibration'] + 'calib_zernike_turlib_pywfs.pkl', 'rb') as inp:
-        calib_zernike_turlib_pywfs = pickle.load(inp)
+        saved_calib_zernike_turlib_pywfs = pickle.load(inp)
 
 #%% compute cross-talk matrice (turlib input)
 
@@ -193,6 +222,13 @@ gR_pywfs = g_pywfs[:,param['nModes']:] # modes2slopes for higher order modes
 gFplus_pywfs = np.linalg.pinv(np.transpose(gF_pywfs) @ gF_pywfs) @ np.transpose(gF_pywfs)
 
 crosstalkMatrix_pywfs = gFplus_pywfs @ gR_pywfs
+
+g_shGeo = calib_zernike_turlib_shGeo.D
+gF_shGeo = g_shGeo[:,:param['nModes']] # modes2slopes for reconstructed modes
+gR_shGeo = g_shGeo[:,param['nModes']:] # modes2slopes for higher order modes
+gFplus_shGeo = np.linalg.pinv(np.transpose(gF_shGeo) @ gF_shGeo) @ np.transpose(gF_shGeo)
+
+crosstalkMatrix_shGeo = gFplus_shGeo @ gR_shGeo
 
 #%%%%%%%%%%%%%%%%%%%%%% Loop %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -309,12 +345,38 @@ a=time.time()
 
 ai2pwfs=np.zeros(param['nModes']+1)
 ai2pwfs[1:]=varZernikePywfs
-output_pywfs = iterative_estimator(param['diameter'],
+outputPywfs = iterative_estimator(param['diameter'],
                               modes=np.arange(2,param['nModesFit']+1), 
                               #modes=zernike.modes[:,0:param['nModesFit']],
                               ai2=ai2pwfs, 
                               noise_estimate=np.zeros(param['nModes']+1), 
                               n_rec_modes=param['nModes'], 
+                              m=param['nModesShown'],# crosstalkMatrix_pywfs.shape[0]*crosstalkMatrix_pywfs.shape[1], 
+                              c_mat=crosstalkMatrix_pywfs,
+                              hro=param['radialOrder'], # last radial order of the modes being fitted, e.g nModesFit
+                              lro=1)
+
+ai2shDiff=np.zeros(param['nModes']+1)
+ai2shDiff[1:]=varZernikeShGeo
+outputShDiff = iterative_estimator(param['diameter'],
+                              modes=np.arange(2,param['nModesFit']+1), 
+                              #modes=zernike.modes[:,0:param['nModesFit']],
+                              ai2=ai2shDiff, 
+                              noise_estimate=np.zeros(param['nModes']+1),
+                              n_rec_modes=param['nModes'],
+                              m=param['nModesShown'],# crosstalkMatrix_pywfs.shape[0]*crosstalkMatrix_pywfs.shape[1], 
+                              c_mat=crosstalkMatrix_pywfs,
+                              hro=param['radialOrder'], # last radial order of the modes being fitted, e.g nModesFit
+                              lro=1)
+
+ai2shGeo=np.zeros(param['nModes']+1)
+ai2shGeo[1:]=varZernikeShGeo
+outputShGeo = iterative_estimator(param['diameter'],
+                              modes=np.arange(2,param['nModesFit']+1),
+                              #modes=zernike.modes[:,0:param['nModesFit']],
+                              ai2=ai2shGeo,
+                              noise_estimate=np.zeros(param['nModes']+1),
+                              n_rec_modes=param['nModes'],
                               m=param['nModesShown'],# crosstalkMatrix_pywfs.shape[0]*crosstalkMatrix_pywfs.shape[1], 
                               c_mat=crosstalkMatrix_pywfs,
                               hro=param['radialOrder'], # last radial order of the modes being fitted, e.g nModesFit
@@ -326,30 +388,24 @@ b=time.time()
 
 print('r0: '+str(param['r0']*100) + ' cm')
 print('L0: '+str(param['L0']) + ' m\n')
-print('estimated r0 (pywfs): ' + str(output_pywfs[0]*100) + ' cm')
-print('estimated L0(pywfs): ' + str(output_pywfs[1]) + ' m\n')
+print('estimated r0 (pwfs): ' + str(outputPywfs[0]*100) + ' cm')
+print('estimated L0(pwfs): ' + str(outputPywfs[1]) + ' m\n')
+print('estimated r0 (shGeo): ' + str(outputShGeo[0]*100) + ' cm')
+print('estimated L0(shGeo): ' + str(outputShGeo[1]) + ' m\n')
 print('The DM was controlled with ' + str(param['nModes']) + ' modes' + 
       ', the reconstruction was done with ' + str(param['nModesShown'])+ ' modes' +
       ', the fitting of the variances was performed over ' + str(param['nModesFit']) + ' modes.' + '\n')
-print('Turlib processing took ' + str(int(b-a)) + ' seconds.\n')
+print('Turlib processing took ' + str(int(b-a)) + ' seconds.')
 
 #%%
 
-plotable_output_pywfs = np.zeros(param['nModes'])
-plotable_output_pywfs[:param['nModesFit']-1] = output_pywfs[2]
-
-fig2, axs2 = plt.subplots(1)
-axs2.plot(range(len(varZernikePywfs)),varZernikePywfs,'b',label='turlibInput')
-axs2.plot(range(len(varZernikePywfs)), plotable_output_pywfs, 'r', label='turliboutput_pywfs')
-axs2.set_yscale('log')
-axs2.legend()
+fig2, axs2 = plt.subplots(2)
+axs2[0].plot(range(len(outputPywfs[2])), outputPywfs[2],'r', label='turliboutputPywfs')
+axs2[1].plot(range(len(varZernikePywfs)),varZernikePywfs,'b',label='turlibInput')
+axs2[0].set_yscale('log')
+axs2[1].set_yscale('log')
 
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%% Save data %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-class Result(object):
-    def __init__(self, name, value):
-        self.name = name
-        self.value = value
 
 # we save the data along with the parameter file
 data = param.copy()
@@ -437,13 +493,3 @@ fig3.savefig(dirc+'modalVariancePapyrus_texp-'+str(param['nIter']/param['frequen
 if param['show'] == False:
     plt.close(fig1)
     plt.close(fig3)
-    
-    
-    
-    
-#%%
-
-bTot = time.time()
-print('Running the whole program took ' + str(int(bTot-aTot)) + ' seconds.')
-
-

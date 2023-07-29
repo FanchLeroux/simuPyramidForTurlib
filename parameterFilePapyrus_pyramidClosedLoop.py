@@ -48,7 +48,7 @@ def initializeParameterFiles():
     ##%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% LOOP %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
      
     param['frequency'] = 1000 # loop frequency in [Hz]
-    param['nIter'] = 20000 # number of iterations
+    param['nIter'] = 100 # number of iterations
     param['gain'] = 0.5 # gain of the integrator
     
     ##%%%%%%%%%%%%%%%%%%%%%%%%%%%% FOCAL PLANE SENSOR %%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -57,7 +57,7 @@ def initializeParameterFiles():
     
     ##%%%%%%%%%%%%%%%%%%%%%%%%%%%% Simulation choices %%%%%%%%%%%%%%%%%%%%%%%%%%
     
-    param['makeCalib'] = False # run calibration part of main program
+    param['calibrate'] = False # trigger calibration. If false, use previous calibration results.
     param['recordTurbulence'] = True # enable phase screen recording while closing the loop {bol}
     
     ##%%%%%%%%%%%%%%%%%%%%%%% Post Processing choices %%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -70,4 +70,11 @@ def initializeParameterFiles():
     
     param['nPsf'] = 9 # number of psf compute along the loop
     param['show'] = True # if True, figures are displayed    
+    
+    ##%%%%%%%%%%%%%%%%%%%%%%%%%%% Folder connections %%%%%%%%%%%%%%%%%%%%%%%%%%%
+    
+    dirc = r'D:\FEUP\simuPyramidForTurblib\\' # main directory
+    param['pathDataCalibration'] = dirc + r'data\calibration\\'
+    param['pathDataLoop'] = dirc + r'data\loop\\'
+    
     return param
