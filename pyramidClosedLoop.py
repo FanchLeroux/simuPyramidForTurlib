@@ -374,7 +374,7 @@ np.save(dataFileName, data)
 
 read_data = np.load(dataFileName,allow_pickle='TRUE').item()
 
-#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Plots rad %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Plots %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 plt.close('all')
 
@@ -437,9 +437,6 @@ fig3.savefig(dirc+'modalVariancePapyrus_texp-'+str(param['nIter']/param['frequen
 if param['show'] == False:
     plt.close(fig1)
     plt.close(fig3)
-    
-    
-    
     
 #%%
 

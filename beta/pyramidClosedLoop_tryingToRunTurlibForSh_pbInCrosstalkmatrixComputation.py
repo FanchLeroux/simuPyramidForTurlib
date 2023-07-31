@@ -26,7 +26,7 @@ from OOPAO.calibration.InteractionMatrix import InteractionMatrixFromPhaseScreen
 
 #%%%%%%%%%%%%%%%%%%%%%%%%%%%% Choose and import parameter file %%%%%%%%%%%%%%%%%
 
-from parameterFilePapyrus_pyramidClosedLoop import initializeParameterFiles
+from parameterFilePapyrus_pyramidClosedLoop_beta import initializeParameterFiles
 #from parameterFile_pyramidClosedLoop import initializeParameterFiles
 
 param = initializeParameterFiles()
@@ -116,6 +116,7 @@ if param['calibrate']:
                                       stroke=param['stroke'],
                                       nMeasurements  = 1,
                                       noise='off')
+    tel.resetOPD()
     
     calib_zernike_shGeo = InteractionMatrix(ngs=src,
                                       atm=atm,
@@ -126,6 +127,7 @@ if param['calibrate']:
                                       stroke=param['stroke'],
                                       nMeasurements  = 1,
                                       noise='off')
+    tel.resetOPD()
     
     calib_zernike_shDiff = InteractionMatrix(ngs=src,
                                       atm=atm,
@@ -136,6 +138,7 @@ if param['calibrate']:
                                       stroke=param['stroke'],
                                       nMeasurements  = 1,
                                       noise='off')
+    tel.resetOPD()
     
     # for turlib
     zernikePlus = Zernike(tel,
@@ -149,7 +152,9 @@ if param['calibrate']:
                                           tel=tel,
                                           wfs=shGeo,
                                           phasScreens=zernikePlus.modesFullRes,
-                                          stroke=param['stroke'])
+                                          stroke=param['stroke'],
+                                          nMeasurements=1)
+    tel.resetOPD()
     
 #%%
  
@@ -158,7 +163,9 @@ if param['calibrate']:
                                           tel=tel,
                                           wfs=shDiff,
                                           phasScreens=zernikePlus.modesFullRes,
-                                          stroke=param['stroke'])
+                                          stroke=param['stroke'],
+                                          nMeasurements=1)
+    tel.resetOPD()
 
 #%%    
     calib_zernike_turlib_pywfs = InteractionMatrixFromPhaseScreen(ngs=src,
@@ -167,6 +174,7 @@ if param['calibrate']:
                                           wfs=pywfs,
                                           phasScreens=zernikePlus.modesFullRes,
                                           stroke=param['stroke'])
+    tel.resetOPD()
     
 #%%    
 
@@ -197,22 +205,22 @@ else:
     
     #load previous calibration results
     with open(param['pathDataCalibration'] + 'calib_zernike_shGeo.pkl', 'rb') as inp:
-        saved_calib_zernike_shGeo = pickle.load(inp)
+        calib_zernike_shGeo = pickle.load(inp)
         
     with open(param['pathDataCalibration'] + 'calib_zernike_shDiff.pkl', 'rb') as inp:
-        saved_calib_zernike_shDiff = pickle.load(inp)
+        calib_zernike_shDiff = pickle.load(inp)
         
     with open(param['pathDataCalibration'] + 'calib_zernike_pywfs.pkl', 'rb') as inp:
-        saved_calib_zernike_pywfs = pickle.load(inp)
+        calib_zernike_pywfs = pickle.load(inp)
     
     with open(param['pathDataCalibration'] + 'calib_zernike_turlib_shGeo.pkl', 'rb') as inp:
-        saved_calib_zernike_turlib_shGeo = pickle.load(inp)
+        calib_zernike_turlib_shGeo = pickle.load(inp)
         
     with open(param['pathDataCalibration'] + 'calib_zernike_turlib_shDiff.pkl', 'rb') as inp:
-        saved_calib_zernike_turlib_shDiff = pickle.load(inp)
+        calib_zernike_turlib_shDiff = pickle.load(inp)
         
     with open(param['pathDataCalibration'] + 'calib_zernike_turlib_pywfs.pkl', 'rb') as inp:
-        saved_calib_zernike_turlib_pywfs = pickle.load(inp)
+        calib_zernike_turlib_pywfs = pickle.load(inp)
 
 #%% compute cross-talk matrice (turlib input)
 
@@ -229,6 +237,13 @@ gR_shGeo = g_shGeo[:,param['nModes']:] # modes2slopes for higher order modes
 gFplus_shGeo = np.linalg.pinv(np.transpose(gF_shGeo) @ gF_shGeo) @ np.transpose(gF_shGeo)
 
 crosstalkMatrix_shGeo = gFplus_shGeo @ gR_shGeo
+
+g_shDiff = calib_zernike_turlib_shDiff.D
+gF_shDiff = g_shDiff[:,:param['nModes']] # modes2slopes for reconstructed modes
+gR_shDiff = g_shDiff[:,param['nModes']:] # modes2slopes for higher order modes
+gFplus_shDiff = np.linalg.pinv(np.transpose(gF_shDiff) @ gF_shDiff) @ np.transpose(gF_shDiff)
+
+crosstalkMatrix_shDiff = gFplus_shDiff @ gR_shDiff
 
 #%%%%%%%%%%%%%%%%%%%%%% Loop %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -354,7 +369,8 @@ outputPywfs = iterative_estimator(param['diameter'],
                               m=param['nModesShown'],# crosstalkMatrix_pywfs.shape[0]*crosstalkMatrix_pywfs.shape[1], 
                               c_mat=crosstalkMatrix_pywfs,
                               hro=param['radialOrder'], # last radial order of the modes being fitted, e.g nModesFit
-                              lro=1)
+                              lro=1,
+                              full_vector=True)
 
 ai2shDiff=np.zeros(param['nModes']+1)
 ai2shDiff[1:]=varZernikeShGeo
@@ -392,6 +408,8 @@ print('estimated r0 (pwfs): ' + str(outputPywfs[0]*100) + ' cm')
 print('estimated L0(pwfs): ' + str(outputPywfs[1]) + ' m\n')
 print('estimated r0 (shGeo): ' + str(outputShGeo[0]*100) + ' cm')
 print('estimated L0(shGeo): ' + str(outputShGeo[1]) + ' m\n')
+print('estimated r0 (shDiff): ' + str(outputShDiff[0]*100) + ' cm')
+print('estimated L0(shDiff): ' + str(outputShDiff[1]) + ' m\n')
 print('The DM was controlled with ' + str(param['nModes']) + ' modes' + 
       ', the reconstruction was done with ' + str(param['nModesShown'])+ ' modes' +
       ', the fitting of the variances was performed over ' + str(param['nModesFit']) + ' modes.' + '\n')
@@ -420,7 +438,7 @@ data['gF_pywfs'] = gF_pywfs
 data['gR_pywfs'] = gR_pywfs
 data['gFplus_pywfs'] = gFplus_pywfs
 
-dataFileName = r'D:\FEUP\simuPyramidForTurblib\data\\'+str(param['nIter']/param['frequency'])+'s'\
+dataFileName = r'D:\FEUP\simuPyramidForTurblib\beta\data\\'+str(param['nIter']/param['frequency'])+'s'\
              +'_loopFrequency-'+str(param['frequency'])+'Hz'\
              +'_r0-'+str(param['r0']*100)+'cm'\
              +'_band-'+param['opticalBand']\
@@ -488,8 +506,19 @@ fig3.savefig(dirc+'modalVariancePapyrus_texp-'+str(param['nIter']/param['frequen
              +'.png',
              bbox_inches='tight')
 
-
 #%% close fig
 if param['show'] == False:
     plt.close(fig1)
     plt.close(fig3)
+    
+#%% fig4 : comparaison input-output turlib
+
+fig4, axs4 = plt.subplots(1)
+axs4.plot(outputPywfs[2],'r',label='Turlib output pwfs')
+axs4.plot(outputShGeo[2],'k',label='Turlib output shGeo')
+axs4.plot(ai2pwfs[1:len(outputPywfs[2])+1],'b',label='Turlib output')
+axs4.plot(ai2pwfs[1:len(outputPywfs[2])+1]-outputPywfs[2], 'g', label='Turlib input')
+axs4.set_yscale('log')
+axs4.legend
+
+
